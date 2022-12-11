@@ -94,7 +94,7 @@ function getTranscription(transcriptionId) {
 
 
 
-app.post("/webhook", (req, res) => {
+app.post("/webhook", async (req, res) => {
     let body = req.body;
 
     const access_token = process.env.ACCESS_TOKEN;
@@ -133,102 +133,66 @@ app.post("/webhook", (req, res) => {
             let media_id = body.entry[0].changes[0].value.messages[0].audio.id;
 
             // retrive audio file from whatsapp using media_id
-            axios({
-                method: "GET",
-                url: "https://graph.facebook.com/v15.0/" + media_id + "/",
+            let audioUrl = await axios.get("https://graph.facebook.com/v15.0/" + media_id + "/", {
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": "Bearer " + access_token,
                 }
             }).then(function (response) {
-                let audioUrl = response.data.url;
+                return response.data.url;
+            });
 
-                // axios({
-                //     method: "POST",
-                //     url:
-                //         "https://graph.facebook.com/v15.0/" +
-                //         phone_number_id +
-                //         "/messages?access_token=" +
-                //         access_token,
-                //     data: {
-                //         messaging_product: "whatsapp",
-                //         to: from,
-                //         text: { body: audioUrl },
-                //     },
-                //     headers: { "Content-Type": "application/json" },
-                // });
+            // download audio file and upload it to assemblyai api
+            // and then get the transcription and send it back to whatsapp
 
+            let audioFile = await axios.get(audioUrl, {
+                headers: {
+                    "Authorization": "Bearer " + access_token,
+                }
+            }).then(function (response) {
+                return response.data;
+            });
 
-                // download audio file and upload it to assemblyai api
-                // and then get the transcription and send it back to whatsapp
-                axios({
-                    method: "GET",
-                    url: audioUrl,
-                    headers: {
-                        "Authorization": "Bearer " + access_token,
-                    }
-                }).then(function (response) {
+            // upload audio file to assemblyai api
+            let assemblyURL = await uploadFile(audioFile);
 
-                    // download audio file and save it in a variable
-                    let audio = response.data;
+            // get transcription id from assemblyai api
+            let transcriptionId = await getTranscriptionId(assemblyURL.upload_url);
 
-                    // upload audio file to assemblyai api
-                    let assemblyURL = uploadFile(audio);
+            let transcription = getTranscription(transcriptionId.id);
 
-                    // response.data.pipe(fs.createWriteStream("audio.mp3"));
+            // repeadly call getTranscription every 4 seconds until transcription.status == "completed" or "error"
+            let interval = setInterval(function () {
+                if (transcription.status == "completed") {
+                    clearInterval(interval);
+                } else if (transcription.status == "error") {
+                    clearInterval(interval);
+                } else {
+                    transcription = getTranscription(transcriptionId.id);
+                }
+            }, 4000);
 
-                    // // get transcription from assemblyai api
-                    // let transcriptionId = getTranscriptionId(assemblyURL.upload_url);
-
-                    // let transcription = getTranscription(transcriptionId.id)
-
-                    // // repeadly call getTranscription every 4 seconds until transcription.status == "completed" or "error"
-                    // let interval = setInterval(function () {
-                    //     if (transcription.status == "completed") {
-                    //         clearInterval(interval);
-                    //     } else if (transcription.status == "error") {
-                    //         clearInterval(interval);
-                    //     } else {
-                    //         transcription = getTranscription(transcriptionId.id);
-                    //     }
-                    // }, 4000);
-
-                    // send transcription.text back to whatsapp
-                    axios({
-                        method: "POST",
-                        url:
-                            "https://graph.facebook.com/v15.0/" +
-                            phone_number_id +
-                            "/messages?access_token=" +
-                            access_token,
-                        data: {
-                            messaging_product: "whatsapp",
-                            to: from,
-                            text: { body: JSON.stringify(assemblyURL) },
-                        },
-                        headers: { "Content-Type": "application/json" },
-                    });
-
-
-                }).catch(function (error) {
-                    console.log(error);
-                });
-
-
-            }).catch(function (error) {
-                console.log(error);
-                res.sendStatus(400);
+            // send transcription.text back to whatsapp
+            axios({
+                method: "POST",
+                url:
+                    "https://graph.facebook.com/v15.0/" +
+                    phone_number_id +
+                    "/messages?access_token=" +
+                    access_token,
+                data: {
+                    messaging_product: "whatsapp",
+                    to: from,
+                    text: { body: transcription.text },
+                },
+                headers: { "Content-Type": "application/json" },
             });
         }
-
-        res.sendStatus(200);
-
-    } else {
-        // Returns a '404 Not Found' if event is not from a page subscription
-        res.sendStatus(404);
     }
-}
-);
+
+    res.status(200).send("EVENT_RECEIVED");
+});
+
 
 // Sends response messages via the Send API
 function callSendAPI(messageData) {
