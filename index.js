@@ -76,11 +76,9 @@ app.post("/webhook", (req, res) => {
             axios({
                 method: "GET",
                 url: "https://graph.facebook.com/v15.0/" + media_id + "/",
-                auth: {
-                    bearer: access_token
-                },
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + access_token,
                 }
             }).then(function (response) {
                 let audio = response.data.url;
@@ -95,7 +93,7 @@ app.post("/webhook", (req, res) => {
                     data: {
                         messaging_product: "whatsapp",
                         to: from,
-                        audio: { url: audio },
+                        text: { body: audio },
                     },
                     headers: { "Content-Type": "application/json" },
                 });
