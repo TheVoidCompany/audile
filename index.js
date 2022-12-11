@@ -30,6 +30,51 @@ app.get("/webhook", (req, res) => {
     }
 });
 
+// upload file to assemblyai api using axios
+function uploadFile(file) {
+    axios({
+        method: "POST",
+        url: "https://api.assemblyai.com/v2/upload",
+        headers: {
+            "authorization": process.env.ASSEMBLY_AI_SECRET,
+            "content-type": "multipart/form-data",
+        },
+        data: file,
+    }).then(function (response) {
+        console.log(response.data);
+        return response.data;
+    }
+    ).catch(function (error) {
+        console.log(error);
+    }
+    );
+}
+
+// get TRANSCRIPTION from assemblyai api using axios
+function getTranscription(audioURL) {
+    axios({
+        method: "POST",
+        url: "https://api.assemblyai.com/v2/transcript",
+        headers: {
+            "authorization": process.env.ASSEMBLY_AI_SECRET,
+            "content-type": "application/json",
+        },
+        data: {
+            "audio_url": audioURL,
+        },
+    }).then(function (response) {
+        console.log(response.data);
+        return response.data;
+    }
+    ).catch(function (error) {
+        console.log(error);
+    }
+    );
+}
+
+
+
+
 
 app.post("/webhook", (req, res) => {
     let body = req.body;
@@ -52,7 +97,7 @@ app.post("/webhook", (req, res) => {
         if (body.entry[0].changes[0].value.messages[0].type == "text") {
             let msg_body = req.body.entry[0].changes[0].value.messages[0].text.body; // extract the message text from the webhook payload
             axios({
-                method: "POST", // Required, HTTP method, a string, e.g. POST, GET
+                method: "POST",
                 url:
                     "https://graph.facebook.com/v15.0/" +
                     phone_number_id +
@@ -61,15 +106,12 @@ app.post("/webhook", (req, res) => {
                 data: {
                     messaging_product: "whatsapp",
                     to: from,
-                    text: { body: "Ack: " + msg_body },
+                    text: { body: "test: " + msg_body },
                 },
                 headers: { "Content-Type": "application/json" },
             });
-        }
-
-        // get audio file from whatsapp message and send it back
-        if (body.entry[0].changes[0].value.messages[0].type == "audio") {
-
+        } else if (body.entry[0].changes[0].value.messages[0].type == "audio") {
+            // get audio file from whatsapp message and send it back
             let media_id = body.entry[0].changes[0].value.messages[0].audio.id;
 
             // retrive audio file from whatsapp using media_id
@@ -81,25 +123,66 @@ app.post("/webhook", (req, res) => {
                     "Authorization": "Bearer " + access_token,
                 }
             }).then(function (response) {
-                let audio = response.data.url;
+                let audioUrl = response.data.url;
 
+                // download audio file and upload it to assemblyai api
+                // and then get the transcription and send it back to whatsapp
                 axios({
-                    method: "POST", // Required, HTTP method, a string, e.g. POST, GET
-                    url:
-                        "https://graph.facebook.com/v15.0/" +
-                        phone_number_id +
-                        "/messages?access_token=" +
-                        access_token,
-                    data: {
-                        messaging_product: "whatsapp",
-                        to: from,
-                        text: { body: audio },
-                    },
-                    headers: { "Content-Type": "application/json" },
+                    method: "GET",
+                    url: audioUrl
+                }).then(function (response) {
+
+                    // download audio file and save it in a variable
+                    let audio = response.data;
+
+                    // upload audio file to assemblyai api
+                    let assemblyURL = uploadFile(audio);
+
+                    // response.data.pipe(fs.createWriteStream("audio.mp3"));
+
+                    // get transcription from assemblyai api
+                    let transcription = getTranscription(assemblyURL);
+
+                    // send transcription back to whatsapp
+                    axios({
+                        method: "POST",
+                        url:
+                            "https://graph.facebook.com/v15.0/" +
+                            phone_number_id +
+                            "/messages?access_token=" +
+                            access_token,
+                        data: {
+                            messaging_product: "whatsapp",
+                            to: from,
+                            text: { body: transcription },
+                        },
+                        headers: { "Content-Type": "application/json" },
+                    });
+
+
+                }).catch(function (error) {
+                    console.log(error);
                 });
+
+
+                // axios({
+                //     method: "POST", // Required, HTTP method, a string, e.g. POST, GET
+                //     url:
+                //         "https://graph.facebook.com/v15.0/" +
+                //         phone_number_id +
+                //         "/messages?access_token=" +
+                //         access_token,
+                //     data: {
+                //         messaging_product: "whatsapp",
+                //         to: from,
+                //         text: { body: audio },
+                //     },
+                //     headers: { "Content-Type": "application/json" },
+                // });
 
             }).catch(function (error) {
                 console.log(error);
+                res.sendStatus(400);
             });
         }
 
