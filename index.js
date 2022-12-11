@@ -156,21 +156,24 @@ app.post("/webhook", async (req, res) => {
             // upload audio file to assemblyai api
             let assemblyURL = await uploadFile(audioFile);
 
-            // get transcription id from assemblyai api
-            let transcriptionId = await getTranscriptionId(assemblyURL.upload_url);
+            console.log(assemblyURL);
 
-            let transcription = getTranscription(transcriptionId.id);
 
-            // repeadly call getTranscription every 4 seconds until transcription.status == "completed" or "error"
-            let interval = setInterval(function () {
-                if (transcription.status == "completed") {
-                    clearInterval(interval);
-                } else if (transcription.status == "error") {
-                    clearInterval(interval);
-                } else {
-                    transcription = getTranscription(transcriptionId.id);
-                }
-            }, 4000);
+            // // get transcription id from assemblyai api
+            // let transcriptionId = await getTranscriptionId(assemblyURL.upload_url);
+
+            // let transcription = getTranscription(transcriptionId.id);
+
+            // // repeadly call getTranscription every 4 seconds until transcription.status == "completed" or "error"
+            // let interval = setInterval(function () {
+            //     if (transcription.status == "completed") {
+            //         clearInterval(interval);
+            //     } else if (transcription.status == "error") {
+            //         clearInterval(interval);
+            //     } else {
+            //         transcription = getTranscription(transcriptionId.id);
+            //     }
+            // }, 4000);
 
             // send transcription.text back to whatsapp
             axios({
@@ -183,7 +186,7 @@ app.post("/webhook", async (req, res) => {
                 data: {
                     messaging_product: "whatsapp",
                     to: from,
-                    text: { body: transcription.text },
+                    text: { body: JSON.stringify(assemblyURL) },
                 },
                 headers: { "Content-Type": "application/json" },
             });
