@@ -34,6 +34,8 @@ app.get("/webhook", (req, res) => {
 app.post("/webhook", (req, res) => {
     let body = req.body;
 
+    const access_token = process.env.ACCESS_TOKEN;
+
     // Checks this is an event from a page subscription
     if (
         body.object === "whatsapp_business_account" &&
@@ -55,7 +57,7 @@ app.post("/webhook", (req, res) => {
                     "https://graph.facebook.com/v15.0/" +
                     phone_number_id +
                     "/messages?access_token=" +
-                    token,
+                    access_token,
                 data: {
                     messaging_product: "whatsapp",
                     to: from,
@@ -75,7 +77,7 @@ app.post("/webhook", (req, res) => {
                 method: "GET",
                 url: "https://graph.facebook.com/v15.0/" + media_id + "/",
                 auth: {
-                    bearer: process.env.ACCESS_TOKEN
+                    bearer: access_token
                 },
                 headers: {
                     "Content-Type": "application/json"
@@ -89,7 +91,7 @@ app.post("/webhook", (req, res) => {
                         "https://graph.facebook.com/v15.0/" +
                         phone_number_id +
                         "/messages?access_token=" +
-                        process.env.ACCESS_TOKEN,
+                        access_token,
                     data: {
                         messaging_product: "whatsapp",
                         to: from,
