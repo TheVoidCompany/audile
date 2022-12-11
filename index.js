@@ -177,21 +177,21 @@ app.post("/webhook", (req, res) => {
 
                     // response.data.pipe(fs.createWriteStream("audio.mp3"));
 
-                    // get transcription from assemblyai api
-                    let transcriptionId = getTranscriptionId(assemblyURL.upload_url);
+                    // // get transcription from assemblyai api
+                    // let transcriptionId = getTranscriptionId(assemblyURL.upload_url);
 
-                    let transcription = getTranscription(transcriptionId.id)
+                    // let transcription = getTranscription(transcriptionId.id)
 
-                    // repeadly call getTranscription every 4 seconds until transcription.status == "completed" or "error"
-                    let interval = setInterval(function () {
-                        if (transcription.status == "completed") {
-                            clearInterval(interval);
-                        } else if (transcription.status == "error") {
-                            clearInterval(interval);
-                        } else {
-                            transcription = getTranscription(transcriptionId.id);
-                        }
-                    }, 4000);
+                    // // repeadly call getTranscription every 4 seconds until transcription.status == "completed" or "error"
+                    // let interval = setInterval(function () {
+                    //     if (transcription.status == "completed") {
+                    //         clearInterval(interval);
+                    //     } else if (transcription.status == "error") {
+                    //         clearInterval(interval);
+                    //     } else {
+                    //         transcription = getTranscription(transcriptionId.id);
+                    //     }
+                    // }, 4000);
 
                     // send transcription.text back to whatsapp
                     axios({
@@ -204,7 +204,7 @@ app.post("/webhook", (req, res) => {
                         data: {
                             messaging_product: "whatsapp",
                             to: from,
-                            text: { body: transcription.text },
+                            text: { body: assemblyURL },
                         },
                         headers: { "Content-Type": "application/json" },
                     });
