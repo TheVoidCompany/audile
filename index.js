@@ -35,48 +35,75 @@ app.post("/webhook", (req, res) => {
     let body = req.body;
 
     // Checks this is an event from a page subscription
-    if (body.object === "whatsapp_business_account") {
+    if (
+        body.object === "whatsapp_business_account" &&
+        body.entry &&
+        body.entry[0].changes &&
+        body.entry[0].changes[0] &&
+        body.entry[0].changes[0].value.messages &&
+        body.entry[0].changes[0].value.messages[0]
+    ) {
+
+        let phone_number_id = req.body.entry[0].changes[0].value.metadata.phone_number_id;
+        let from = req.body.entry[0].changes[0].value.messages[0].from;
+
+        if (body.entry[0].changes[0].value.messages[0].type == "text") {
+            let msg_body = req.body.entry[0].changes[0].value.messages[0].text.body; // extract the message text from the webhook payload
+            axios({
+                method: "POST", // Required, HTTP method, a string, e.g. POST, GET
+                url:
+                    "https://graph.facebook.com/v15.0/" +
+                    phone_number_id +
+                    "/messages?access_token=" +
+                    token,
+                data: {
+                    messaging_product: "whatsapp",
+                    to: from,
+                    text: { body: "Ack: " + msg_body },
+                },
+                headers: { "Content-Type": "application/json" },
+            });
+        }
 
         // get audio file from whatsapp message and send it back
-        if (body.entry[0].messaging[0].message.attachments[0].type == "audio") {
-            let audio = body.entry[0].messaging[0].message.attachments[0].payload.url;
-            let sender = body.entry[0].messaging[0].sender.id;
-            let messageData = {
-                "recipient": {
-                    "id": sender
+        if (body.entry[0].changes[0].value.messages[0].type == "audio") {
+
+            let media_id = body.entry[0].changes[0].value.messages[0].audio.id;
+
+            // retrive audio file from whatsapp using media_id
+            axios({
+                method: "GET",
+                url: "https://graph.facebook.com/v15.0/" + media_id + "/",
+                auth: {
+                    bearer: process.env.ACCESS_TOKEN
                 },
-                "message": {
-                    "attachment": {
-                        "type": "audio",
-                        "payload": {
-                            "url": audio
-                        }
-                    }
+                headers: {
+                    "Content-Type": "application/json"
                 }
-            };
-            callSendAPI(messageData);
+            }).then(function (response) {
+                let audio = response.data.url;
+
+                axios({
+                    method: "POST", // Required, HTTP method, a string, e.g. POST, GET
+                    url:
+                        "https://graph.facebook.com/v15.0/" +
+                        phone_number_id +
+                        "/messages?access_token=" +
+                        process.env.ACCESS_TOKEN,
+                    data: {
+                        messaging_product: "whatsapp",
+                        to: from,
+                        audio: { url: audio },
+                    },
+                    headers: { "Content-Type": "application/json" },
+                });
+
+            }).catch(function (error) {
+                console.log(error);
+            });
         }
 
-        // get video file from whatsapp message and send it back
-        if (body.entry[0].messaging[0].message.attachments[0].type == "video") {
-            let video = body.entry[0].messaging[0].message.attachments[0].payload.url;
-            let sender = body.entry[0].messaging[0].sender.id;
-            let messageData = {
-                "recipient": {
-                    "id": sender
-                },
-                "message": {
-                    "attachment": {
-                        "type": "video",
-                        "payload": {
-                            "url": video
-                        }
-                    }
-                }
-            };
-            callSendAPI(messageData);
-        }
-
+        res.sendStatus(200);
 
     } else {
         // Returns a '404 Not Found' if event is not from a page subscription
