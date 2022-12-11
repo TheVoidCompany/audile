@@ -50,8 +50,8 @@ function uploadFile(file) {
     );
 }
 
-// get TRANSCRIPTION from assemblyai api using axios
-function getTranscription(audioURL) {
+// get TRANSCRIPTION id from assemblyai api using axios
+function getTranscriptionId(audioURL) {
     axios({
         method: "POST",
         url: "https://api.assemblyai.com/v2/transcript",
@@ -61,6 +61,24 @@ function getTranscription(audioURL) {
         },
         data: {
             "audio_url": audioURL,
+        },
+    }).then(function (response) {
+        console.log(response.data);
+        return response.data;
+    }
+    ).catch(function (error) {
+        console.log(error);
+    }
+    );
+}
+
+// get TRANSCRIPTION result from assemblyai api using axios
+function getTranscription(transcriptionId) {
+    axios({
+        method: "GET",
+        url: "https://api.assemblyai.com/v2/transcript/" + transcriptionId,
+        headers: {
+            "authorization": process.env.ASSEMBLY_AI_SECRET,
         },
     }).then(function (response) {
         console.log(response.data);
@@ -141,9 +159,22 @@ app.post("/webhook", (req, res) => {
                     // response.data.pipe(fs.createWriteStream("audio.mp3"));
 
                     // get transcription from assemblyai api
-                    let transcription = getTranscription(assemblyURL);
+                    let transcriptionId = getTranscriptionId(assemblyURL.upload_url);
 
-                    // send transcription back to whatsapp
+                    let transcription = getTranscription(transcriptionId.id)
+
+                    // repeadly call getTranscription every 4 seconds until transcription.status == "completed" or "error"
+                    let interval = setInterval(function () {
+                        if (transcription.status == "completed") {
+                            clearInterval(interval);
+                        } else if (transcription.status == "error") {
+                            clearInterval(interval);
+                        } else {
+                            transcription = getTranscription(transcriptionId.id);
+                        }
+                    }, 4000);
+
+                    // send transcription.text back to whatsapp
                     axios({
                         method: "POST",
                         url:
@@ -154,7 +185,7 @@ app.post("/webhook", (req, res) => {
                         data: {
                             messaging_product: "whatsapp",
                             to: from,
-                            text: { body: transcription },
+                            text: { body: transcription.text },
                         },
                         headers: { "Content-Type": "application/json" },
                     });
